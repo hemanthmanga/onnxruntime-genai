@@ -74,14 +74,18 @@ jobs:
           echo "ANDROID_SDK_ROOT=$HOME/Android" >> $GITHUB_ENV
           echo "PATH=$PATH:$HOME/Android/platform-tools:$HOME/Android/emulator" >> $GITHUB_ENV
 
-      - name: Verify Android Emulator installation
+      - name: Create Android Virtual Device (AVD)
         run: |
-          ls -l $HOME/Android/emulator
+          echo "no" | $HOME/Android/cmdline-tools/bin/avdmanager create avd -n test_avd -k "system-images;android-27;default;x86_64" --force
 
       - name: Start Android Emulator
         run: |
           $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -gpu off &
           adb wait-for-device
+
+      - name: Verify Emulator is Running
+        run: |
+          adb devices
 
       - name: Create Android build
         run: |
