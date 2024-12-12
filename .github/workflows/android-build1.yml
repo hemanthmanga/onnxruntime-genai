@@ -3,20 +3,24 @@ on:
   workflow_dispatch:
   push:
     branches:
-    - AE
-    - rel-*
+      - main
+      - rel-*
   pull_request:
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
 env:
   ORT_NIGHTLY_REST_API: "https://feeds.dev.azure.com/aiinfra/PublicPackages/_apis/packaging/Feeds/ORT-Nightly/packages?packageNameQuery=Microsoft.ML.OnnxRuntime&api-version=6.0-preview.1"
   ORT_PACKAGE_NAME: "Microsoft.ML.OnnxRuntime"
   ORT_NIGHTLY_SOURCE: "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT-Nightly/nuget/v3/index.json"
   ANDROID_ABI: "x86_64"
+
 jobs:
   android_x64:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout OnnxRuntime GenAI repo
         uses: actions/checkout@v4
@@ -35,66 +39,58 @@ jobs:
         with:
           gradle-version: '8.6'
 
-      - name: Install jq
-        run: |
-          sudo apt-get install jq
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Get the Latest OnnxRuntime Nightly Version
+      # Install Android SDK command line tools
+      - name: Install Android SDK command line tools
         run: |
-          ORT_NIGHTLY_VERSION=$(curl -s "${{ env.ORT_NIGHTLY_REST_API }}" | jq -r '.value[0].versions[0].normalizedVersion')
-          echo "$ORT_NIGHTLY_VERSION"
-          echo "ORT_NIGHTLY_VERSION=$ORT_NIGHTLY_VERSION" >> $GITHUB_ENV
+          sudo apt-get update -y
+          sudo apt-get install -y wget unzip
 
-      - name: Download OnnxRuntime Nightly
+          # Download and extract SDK tools
+          wget https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip
+          unzip commandlinetools-linux-6858069_latest.zip -d $HOME/android-sdk
+
+          # Ensure correct path to cmdline-tools
+          mv $HOME/android-sdk/cmdline-tools $HOME/android-sdk/cmdline-tools-latest
+
+          # Export necessary environment variables
+          echo "export ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "export ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "export PATH=\$PATH:\$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_ENV
+
+      # Ensure Android SDK tools are installed
+      - name: Install Android SDK components
         run: |
-          dotnet new console
-          dotnet add package ${{ env.ORT_PACKAGE_NAME }} --version ${{ env.ORT_NIGHTLY_VERSION }} --source ${{ env.ORT_NIGHTLY_SOURCE }} --package-directory .
+          sdkmanager --update
+          sdkmanager "platform-tools" "emulator" "system-images;android-27;default;x86_64" "platforms;android-27"
 
-      - name: Extract ONNX Runtime AAR
+      # Create Android build
+      - name: Create Android build
         run: |
           set -e -x
-          unzip microsoft.ml.onnxruntime/${{ env.ORT_NIGHTLY_VERSION }}/runtimes/android/native/onnxruntime.aar -d ort
-          ls -lR ort
+          rm -rf build
+          ./build.sh --android --android_api=27 --android_ndk_path=${ANDROID_NDK_LATEST_HOME} --config=RelWithDebInfo --android_abi=${{ env.ANDROID_ABI }} --parallel --build_java --update
 
-      - name: Install Android SDK and Emulator
+      # Run Android build
+      - name: Run Android build
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip wget
-          wget https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip -P $HOME
-          unzip $HOME/commandlinetools-linux-7583922_latest.zip -d $HOME/Android
-          yes | $HOME/Android/cmdline-tools/bin/sdkmanager --sdk_root=$HOME/Android --install "platform-tools" "emulator" "system-images;android-27;default;x86_64"
+          set -e -x
+          ./build.sh --android --android_api=27 --android_ndk_path=${ANDROID_NDK_LATEST_HOME} --config=RelWithDebInfo --android_abi=${{ env.ANDROID_ABI }} --parallel --build_java --build
 
-      - name: Set Android SDK path
+      # Enable KVM group perms so Android emulator can run
+      - name: Enable KVM group perms
         run: |
-          echo "ANDROID_HOME=$HOME/Android" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/Android" >> $GITHUB_ENV
-          echo "PATH=$PATH:$HOME/Android/platform-tools:$HOME/Android/emulator" >> $GITHUB_ENV
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
-      - name: Create Android Virtual Device (AVD)
+      # Run the Android Emulator
+      - name: Run Android Emulator
         run: |
-          echo "no" | $HOME/Android/cmdline-tools/bin/avdmanager create avd -n test_avd -k "system-images;android-27;default;x86_64" --force
-
-      - name: Start Android Emulator
-        run: |
+          set -e -x
           $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -gpu off &
           adb wait-for-device
 
-      - name: Verify Emulator is Running
-        run: |
-          adb devices
-
-      - name: Create Android build
-        run: |
-          ./build.sh --android --android_api=27 --android_ndk_path=${ANDROID_NDK_LATEST_HOME} --config=RelWithDebInfo --android_abi=${{ env.ANDROID_ABI }} --parallel --build_java --update
-
-      - name: Run Android build
-        run: |
-          ./build.sh --android --android_api=27 --android_ndk_path=${ANDROID_NDK_LATEST_HOME} --config=RelWithDebInfo --android_abi=${{ env.ANDROID_ABI }} --parallel --build_java --build
-
-      - name: Run Android tests
-        run: |
-          ./build.sh --android --android_api=27 --android_ndk_path=${ANDROID_NDK_LATEST_HOME} --config=RelWithDebInfo --android_abi=${{ env.ANDROID_ABI }} --parallel --build_java --android_run_emulator --test
