@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - AE
+      - main
       - rel-*
   pull_request:
 
@@ -61,6 +61,9 @@ jobs:
           echo "export ANDROID_SDK_ROOT=$HOME/Android/Sdk" >> ~/.bashrc
           echo "export PATH=\$PATH:\$ANDROID_HOME/cmdline-tools/latest/bin" >> ~/.bashrc
           source ~/.bashrc
+
+          # Verify sdkmanager location
+          echo "sdkmanager location: $(which sdkmanager)"
           
           # Install SDK components
           yes | sdkmanager --licenses
