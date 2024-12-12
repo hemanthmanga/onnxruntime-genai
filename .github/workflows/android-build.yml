@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - AE
+      - main
       - rel-*
   pull_request:
 
@@ -108,6 +108,7 @@ jobs:
       # Ensure Android SDK tools are installed
       - name: Installing required Android SDK components...
         run: |
+          sudo apt-get install -y lib32stdc++6 lib32z1
           sdkmanager --update
           sdkmanager "platform-tools" "emulator" "system-images;android-27;default;x86_64"
 
