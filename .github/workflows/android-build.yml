@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - AE
+      - main
       - rel-*
   pull_request:
 
@@ -98,17 +98,22 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y wget unzip
+
+          # Download and extract SDK tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip
           unzip commandlinetools-linux-6858069_latest.zip -d $HOME/android-sdk
-          sudo mv $HOME/android-sdk/cmdline-tools $HOME/android-sdk/cmdline-tools-latest
+
+          # Ensure correct path to cmdline-tools
+          mv $HOME/android-sdk/cmdline-tools $HOME/android-sdk/cmdline-tools-latest
+
+          # Export necessary environment variables
           echo "export ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "export ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "export ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
           echo "export PATH=\$PATH:\$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_ENV
 
       # Ensure Android SDK tools are installed
       - name: Installing required Android SDK components...
         run: |
-          sudo apt-get install -y lib32stdc++6 lib32z1
           sdkmanager --update
           sdkmanager "platform-tools" "emulator" "system-images;android-27;default;x86_64"
 
