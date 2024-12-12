@@ -43,25 +43,16 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # Install Android SDK command line tools
-      - name: Install Android SDK command line tools
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y wget unzip
+      # Use the official setup-android action to install SDK
+      - name: Set up Android SDK
+        uses: reactions/setup-android@v2
+        with:
+          api-level: 27
+          build-tools: 30.0.3
+          target: "android-27"
+          ndk: "21.3.6528147"
 
-          # Download and extract SDK tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip
-          unzip commandlinetools-linux-6858069_latest.zip -d $HOME/android-sdk
-
-          # Ensure correct path to cmdline-tools
-          mv $HOME/android-sdk/cmdline-tools $HOME/android-sdk/cmdline-tools-latest
-
-          # Export necessary environment variables
-          echo "export ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "export ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "export PATH=\$PATH:\$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_ENV
-
-      # Ensure Android SDK tools are installed
+      # Install Android SDK components
       - name: Install Android SDK components
         run: |
           sdkmanager --update
@@ -93,4 +84,3 @@ jobs:
           set -e -x
           $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -gpu off &
           adb wait-for-device
-
