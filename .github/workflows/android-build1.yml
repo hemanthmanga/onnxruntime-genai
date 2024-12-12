@@ -43,9 +43,9 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # Use the official setup-android action to install SDK
+      # Use the official setup-android action from google
       - name: Set up Android SDK
-        uses: reactions/setup-android@v2
+        uses: google-github-actions/setup-android@v2
         with:
           api-level: 27
           build-tools: 30.0.3
@@ -91,4 +91,3 @@ jobs:
           set -e -x
           $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -gpu off &
           adb wait-for-device
-
