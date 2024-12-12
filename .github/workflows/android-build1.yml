@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - AE
+      - main
       - rel-*
   pull_request:
 
